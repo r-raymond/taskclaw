@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Config {
+    pub data_dir: Option<PathBuf>,
     pub data_format: Option<String>,
     pub default_priority: Option<String>,
     pub show_completed: Option<bool>,
@@ -11,7 +12,13 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        let default_data_dir = dirs::home_dir().map(|mut path| {
+            path.push(".taskclaw");
+            path
+        });
+
         Self {
+            data_dir: default_data_dir,
             data_format: Some("json".to_string()),
             default_priority: Some("medium".to_string()),
             show_completed: Some(true),

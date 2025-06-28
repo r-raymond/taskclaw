@@ -4,7 +4,7 @@ use std::io;
 use taskclaw::{
     cli::{Cli, Commands},
     config::load_config,
-    task::{load_tasks, save_tasks},
+    task::load_tasks,
     tui::run_tui,
 };
 
@@ -15,11 +15,10 @@ fn main() {
 
     match cli.command {
         Commands::Add { description } => {
-            task_list.add_task(description.clone());
-            if let Err(e) = save_tasks(&task_list) {
-                eprintln!("Warning: Could not save tasks: {}", e);
+            match task_list.add_task(description.clone()) {
+                Ok(_) => println!("Added task: {}", description),
+                Err(e) => eprintln!("Error adding task: {}", e),
             }
-            println!("Added task: {}", description);
         }
         Commands::List => {
             if task_list.tasks.is_empty() {
@@ -34,9 +33,6 @@ fn main() {
         }
         Commands::Complete { id } => {
             if task_list.complete_task(id) {
-                if let Err(e) = save_tasks(&task_list) {
-                    eprintln!("Warning: Could not save tasks: {}", e);
-                }
                 println!("Completed task {}", id);
             } else {
                 println!("Task {} not found", id);
@@ -44,9 +40,6 @@ fn main() {
         }
         Commands::Remove { id } => {
             if task_list.remove_task(id) {
-                if let Err(e) = save_tasks(&task_list) {
-                    eprintln!("Warning: Could not save tasks: {}", e);
-                }
                 println!("Removed task {}", id);
             } else {
                 println!("Task {} not found", id);
@@ -69,16 +62,9 @@ fn main() {
             }
         }
         Commands::Tui => {
-            match run_tui(task_list) {
-                Ok(updated_task_list) => {
-                    if let Err(e) = save_tasks(&updated_task_list) {
-                        eprintln!("Warning: Could not save tasks: {}", e);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("TUI error: {}", e);
-                    std::process::exit(1);
-                }
+            if let Err(e) = run_tui(task_list) {
+                eprintln!("TUI error: {}", e);
+                std::process::exit(1);
             }
         }
     }

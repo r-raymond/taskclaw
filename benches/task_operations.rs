@@ -6,7 +6,7 @@ fn benchmark_add_tasks(c: &mut Criterion) {
         b.iter(|| {
             let mut task_list = TaskList::new();
             for i in 0..1000 {
-                task_list.add_task(black_box(format!("Task {}", i)));
+                task_list.add_task(black_box(format!("Task {}", i))).unwrap();
             }
         })
     });
@@ -15,7 +15,7 @@ fn benchmark_add_tasks(c: &mut Criterion) {
 fn benchmark_complete_tasks(c: &mut Criterion) {
     let mut task_list = TaskList::new();
     for i in 0..1000 {
-        task_list.add_task(format!("Task {}", i));
+        task_list.add_task(format!("Task {}", i)).unwrap();
     }
 
     c.bench_function("complete_task", |b| {
@@ -33,7 +33,7 @@ fn benchmark_remove_tasks(c: &mut Criterion) {
         b.iter(|| {
             let mut task_list = TaskList::new();
             for i in 0..100 {
-                task_list.add_task(format!("Task {}", i));
+                task_list.add_task(format!("Task {}", i)).unwrap();
             }
             for i in 0..50 {
                 task_list.remove_task(black_box(i));
@@ -46,7 +46,7 @@ fn benchmark_large_tasklist_operations(c: &mut Criterion) {
     c.bench_function("large_tasklist_search", |b| {
         let mut task_list = TaskList::new();
         for i in 0..10000 {
-            task_list.add_task(format!("Task {}", i));
+            task_list.add_task(format!("Task {}", i)).unwrap();
         }
 
         b.iter(|| {

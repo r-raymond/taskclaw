@@ -1,5 +1,5 @@
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crate::task::{Task, TaskList};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMode {
@@ -66,24 +66,27 @@ impl App {
     fn handle_normal_mode(&mut self, key_event: KeyEvent) {
         match key_event.code {
             KeyCode::Char('q') => {
-                self.should_quit = true;
+                if self.show_help {
+                    self.show_help = false;
+                    self.mode = AppMode::Normal;
+                    self.status_message = "Press 'h' for help, 'q' to quit".to_string();
+                } else {
+                    self.should_quit = true;
+                }
             }
             KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
             KeyCode::Char('h') => {
-                self.show_help = !self.show_help;
-                self.mode = if self.show_help {
-                    AppMode::Help
-                } else {
-                    AppMode::Normal
-                };
+                self.show_help = true;
+                self.mode = AppMode::Help
             }
             KeyCode::Char('a') => {
                 self.input_mode = InputMode::Editing;
                 self.mode = AppMode::Insert;
                 self.input_buffer.clear();
-                self.status_message = "Enter task description (ESC to cancel, Enter to save)".to_string();
+                self.status_message =
+                    "Enter task description (ESC to cancel, Enter to save)".to_string();
             }
             KeyCode::Char('d') => {
                 if !self.task_list.tasks.is_empty() {
@@ -91,7 +94,9 @@ impl App {
                         let task_id = task.id;
                         if self.task_list.remove_task(task_id) {
                             self.status_message = format!("Deleted task {}", task_id);
-                            if self.selected_task >= self.task_list.tasks.len() && self.selected_task > 0 {
+                            if self.selected_task >= self.task_list.tasks.len()
+                                && self.selected_task > 0
+                            {
                                 self.selected_task -= 1;
                             }
                         }
@@ -112,7 +117,9 @@ impl App {
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if !self.task_list.tasks.is_empty() && self.selected_task < self.task_list.tasks.len() - 1 {
+                if !self.task_list.tasks.is_empty()
+                    && self.selected_task < self.task_list.tasks.len() - 1
+                {
                     self.selected_task += 1;
                 }
             }
@@ -135,9 +142,15 @@ impl App {
         match key_event.code {
             KeyCode::Enter => {
                 if !self.input_buffer.trim().is_empty() {
-                    self.task_list.add_task(self.input_buffer.clone());
-                    self.status_message = format!("Added task: {}", self.input_buffer);
-                    self.input_buffer.clear();
+                    match self.task_list.add_task(self.input_buffer.clone()) {
+                        Ok(_) => {
+                            self.status_message = format!("Added task: {}", self.input_buffer);
+                            self.input_buffer.clear();
+                        }
+                        Err(e) => {
+                            self.status_message = format!("Error adding task: {}", e);
+                        }
+                    }
                 } else {
                     self.status_message = "Task description cannot be empty".to_string();
                 }
@@ -170,7 +183,7 @@ impl App {
             "",
             "Navigation:",
             "  ↑/k     - Move up",
-            "  ↓/j     - Move down", 
+            "  ↓/j     - Move down",
             "  Home/g  - Go to top",
             "  End/G   - Go to bottom",
             "",
@@ -189,7 +202,8 @@ impl App {
             "  Enter   - Save task",
             "  Esc     - Cancel editing",
             "",
-            "Press 'h' again to close this help",
+            "Press 'q' to close this help",
         ]
     }
 }
+

@@ -14,9 +14,9 @@ pub mod test_helpers {
 
     pub fn create_sample_task_list() -> TaskList {
         let mut task_list = TaskList::new();
-        task_list.add_task("First task".to_string());
-        task_list.add_task("Second task".to_string());
-        task_list.add_task("Third task".to_string());
+        task_list.add_task("First task".to_string()).unwrap();
+        task_list.add_task("Second task".to_string()).unwrap();
+        task_list.add_task("Third task".to_string()).unwrap();
         task_list.complete_task(1); // Complete second task
         task_list
     }
@@ -82,8 +82,8 @@ mod tests {
         assert_eq!(count_completed_tasks(&task_list), 0);
         assert_eq!(count_pending_tasks(&task_list), 0);
 
-        task_list.add_task("Task 1".to_string());
-        task_list.add_task("Task 2".to_string());
+        task_list.add_task("Task 1".to_string()).unwrap();
+        task_list.add_task("Task 2".to_string()).unwrap();
         assert_eq!(count_completed_tasks(&task_list), 0);
         assert_eq!(count_pending_tasks(&task_list), 2);
 
