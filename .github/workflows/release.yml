@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_version: ${{ env.RELEASE_VERSION }}
+    steps:
+    - name: Get the release version from the tag
+      shell: bash
+      if: env.RELEASE_VERSION == ''
+      run: |
+        echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        echo "version is: ${{ env.RELEASE_VERSION }}"
+
+    - name: Create GitHub release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.RELEASE_VERSION }}
+        release_name: Release ${{ env.RELEASE_VERSION }}
+        draft: false
+        prerelease: false
+
+  build-release:
+    name: Build Release
+    needs: ['create-release']
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build: [linux-static, macos-static, macos-arm-static, windows-static]
+        include:
+        - build: linux-static
+          os: ubuntu-latest
+          rust: stable
+          target: x86_64-unknown-linux-musl
+          archive-name: claw-linux-x86_64-static.tar.gz
+          binary-name: claw-linux-x86_64-static
+        - build: macos-static
+          os: macos-latest
+          rust: stable
+          target: x86_64-apple-darwin
+          archive-name: claw-macos-x86_64-static.tar.gz
+          binary-name: claw-macos-x86_64-static
+        - build: macos-arm-static
+          os: macos-latest
+          rust: stable
+          target: aarch64-apple-darwin
+          archive-name: claw-macos-arm64-static.tar.gz
+          binary-name: claw-macos-arm64-static
+        - build: windows-static
+          os: windows-latest
+          rust: stable
+          target: x86_64-pc-windows-msvc
+          archive-name: claw-windows-x86_64-static.zip
+          binary-name: claw-windows-x86_64-static.exe
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ matrix.rust }}
+        target: ${{ matrix.target }}
+
+    - name: Install musl tools
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools musl-dev
+
+    - name: Build static release binary
+      run: |
+        cargo build --profile release-static --target ${{ matrix.target }}
+        
+    - name: Verify static linking (Linux)
+      if: matrix.build == 'linux-static'
+      run: |
+        echo "Checking static linking..."
+        file target/${{ matrix.target }}/release-static/claw
+        ldd target/${{ matrix.target }}/release-static/claw || echo "Static binary - no dynamic dependencies"
+        
+    - name: Verify binary (macOS) 
+      if: matrix.build == 'macos-static' || matrix.build == 'macos-arm-static'
+      run: |
+        echo "Checking macOS binary..."
+        file target/${{ matrix.target }}/release-static/claw
+        otool -L target/${{ matrix.target }}/release-static/claw
+
+    - name: Create standalone binary (Unix)
+      shell: bash
+      if: matrix.build == 'linux-static' || matrix.build == 'macos-static' || matrix.build == 'macos-arm-static'
+      run: |
+        mkdir -p dist
+        # Copy the static binary and rename it
+        cp "target/${{ matrix.target }}/release-static/claw" "dist/${{ matrix.binary-name }}"
+        chmod +x "dist/${{ matrix.binary-name }}"
+        
+        # Create archive with both standalone binary and full package
+        cp "target/${{ matrix.target }}/release-static/claw" dist/
+        cp README.md LICENSE* dist/ 2>/dev/null || true
+        
+        # Include man page and completions if they exist  
+        if [ -f "target/${{ matrix.target }}/release-static/build/"*/out/man/claw.1 ]; then
+          mkdir -p dist/man
+          cp target/${{ matrix.target }}/release-static/build/*/out/man/claw.1 dist/man/
+        fi
+        
+        if [ -d "target/${{ matrix.target }}/release-static/build/"*/out/completions ]; then
+          mkdir -p dist/completions  
+          cp -r target/${{ matrix.target }}/release-static/build/*/out/completions/* dist/completions/
+        fi
+        
+        tar -czf "${{ matrix.archive-name }}" -C dist .
+
+    - name: Create standalone binary (Windows)
+      shell: bash
+      if: matrix.build == 'windows-static'
+      run: |
+        mkdir -p dist
+        # Copy the static binary and rename it
+        cp "target/${{ matrix.target }}/release-static/claw.exe" "dist/${{ matrix.binary-name }}"
+        
+        # Create archive with both standalone binary and full package
+        cp "target/${{ matrix.target }}/release-static/claw.exe" dist/
+        cp README.md LICENSE* dist/ 2>/dev/null || true
+        
+        # Include man page and completions if they exist  
+        if [ -f "target/${{ matrix.target }}/release-static/build/"*/out/man/claw.1 ]; then
+          mkdir -p dist/man
+          cp target/${{ matrix.target }}/release-static/build/*/out/man/claw.1 dist/man/
+        fi
+        
+        if [ -d "target/${{ matrix.target }}/release-static/build/"*/out/completions ]; then
+          mkdir -p dist/completions
+          cp -r target/${{ matrix.target }}/release-static/build/*/out/completions/* dist/completions/
+        fi
+        
+        7z a "${{ matrix.archive-name }}" ./dist/*
+
+    - name: Upload release archive
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ${{ matrix.archive-name }}
+        asset_name: ${{ matrix.archive-name }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload standalone binary (Unix)
+      if: matrix.build == 'linux-static' || matrix.build == 'macos-static' || matrix.build == 'macos-arm-static'
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: dist/${{ matrix.binary-name }}
+        asset_name: ${{ matrix.binary-name }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload standalone binary (Windows)
+      if: matrix.build == 'windows-static'
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: dist/${{ matrix.binary-name }}
+        asset_name: ${{ matrix.binary-name }}
+        asset_content_type: application/octet-stream
+
+  publish-cargo:
+    name: Publish to Cargo
+    runs-on: ubuntu-latest
+    needs: ['create-release']
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    needs: ['create-release']
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Generate changelog
+      uses: orhun/git-cliff-action@v3
+      with:
+        config: cliff.toml
+        args: --verbose
+      env:
+        OUTPUT: CHANGELOG.md
+
+    - name: Upload changelog
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: CHANGELOG.md
+        asset_name: CHANGELOG.md
+        asset_content_type: text/markdown

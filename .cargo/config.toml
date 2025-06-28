@@ -1,0 +1,50 @@
+# Cargo configuration for static linking
+
+[target.x86_64-unknown-linux-musl]
+# Static linking for Linux (musl)
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-arg=-static",
+]
+
+[target.aarch64-unknown-linux-musl]
+# Static linking for ARM64 Linux (musl)
+rustflags = [
+    "-C", "target-feature=+crt-static", 
+    "-C", "link-arg=-static",
+]
+
+[target.x86_64-pc-windows-msvc]
+# Static linking for Windows (MSVC)
+rustflags = [
+    "-C", "target-feature=+crt-static",
+]
+
+[target.x86_64-pc-windows-gnu]
+# Static linking for Windows (GNU)
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-arg=-static",
+    "-C", "link-arg=-static-libgcc",
+]
+
+[target.x86_64-apple-darwin]
+# Static linking for macOS Intel
+rustflags = [
+    "-C", "link-arg=-static-libgcc",
+]
+
+[target.aarch64-apple-darwin]
+# Static linking for macOS ARM64
+rustflags = [
+    "-C", "link-arg=-static-libgcc",
+]
+
+# Profile for minimal binary size with static linking
+[profile.release-static]
+inherits = "release"
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Better optimization
+panic = "abort"     # Smaller binary size
+strip = true        # Strip debug symbols

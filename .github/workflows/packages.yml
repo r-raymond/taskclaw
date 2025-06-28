@@ -1,0 +1,228 @@
+name: Build Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-deb
+      run: cargo install cargo-deb
+
+    - name: Build deb package
+      run: cargo deb
+
+    - name: Get release version
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Upload deb package
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-package
+        path: target/debian/*.deb
+
+    - name: Get release upload URL
+      id: get_release
+      uses: bruceadams/get-release@v1.3.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload deb to release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
+        asset_path: target/debian/claw_${{ env.RELEASE_VERSION }}_amd64.deb
+        asset_name: claw_${{ env.RELEASE_VERSION }}_amd64.deb
+        asset_content_type: application/vnd.debian.binary-package
+
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-generate-rpm
+      run: cargo install cargo-generate-rpm
+
+    - name: Build binary
+      run: cargo build --release
+
+    - name: Generate RPM
+      run: cargo generate-rpm
+
+    - name: Get release version
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Upload rpm package
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpm-package
+        path: target/generate-rpm/*.rpm
+
+    - name: Get release upload URL
+      id: get_release
+      uses: bruceadams/get-release@v1.3.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload rpm to release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
+        asset_path: target/generate-rpm/claw-${{ env.RELEASE_VERSION }}-1.x86_64.rpm
+        asset_name: claw-${{ env.RELEASE_VERSION }}-1.x86_64.rpm
+        asset_content_type: application/x-rpm
+
+  build-homebrew:
+    name: Build Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: build-deb  # Wait for build to complete
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get release version
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Generate Homebrew formula
+      run: |
+        # Download the macOS tarball to calculate SHA256
+        MACOS_URL="https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_VERSION }}/claw-macos-x86_64.tar.gz"
+        
+        # Create formula template
+        mkdir -p homebrew-formula
+        cat > homebrew-formula/claw.rb << 'EOF'
+        class Claw < Formula
+          desc "A simple CLI task tracking tool"
+          homepage "https://github.com/${{ github.repository }}"
+          url "https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_VERSION }}/claw-macos-x86_64.tar.gz"
+          sha256 "PLACEHOLDER_SHA256"
+          license "MIT"
+
+          def install
+            bin.install "claw"
+            man1.install "man/claw.1" if File.exist?("man/claw.1")
+            
+            if File.exist?("completions")
+              bash_completion.install "completions/claw.bash" => "claw"
+              zsh_completion.install "completions/_claw" => "_claw"
+              fish_completion.install "completions/claw.fish" => "claw.fish"
+            end
+          end
+
+          test do
+            system "#{bin}/claw", "--version"
+          end
+        end
+        EOF
+
+    - name: Upload Homebrew formula
+      uses: actions/upload-artifact@v4
+      with:
+        name: homebrew-formula
+        path: homebrew-formula/claw.rb
+
+  build-appimage:
+    name: Build AppImage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build binary
+      run: cargo build --release
+
+    - name: Download AppImage tools
+      run: |
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+
+    - name: Create AppImage structure
+      run: |
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/applications
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+        mkdir -p AppDir/usr/share/man/man1
+        
+        # Copy binary
+        cp target/release/claw AppDir/usr/bin/
+        
+        # Create desktop file
+        cat > AppDir/usr/share/applications/claw.desktop << 'EOF'
+        [Desktop Entry]
+        Type=Application
+        Name=Claw
+        Comment=A simple CLI task tracking tool
+        Exec=claw
+        Icon=claw
+        Categories=Utility;
+        Terminal=true
+        EOF
+        
+        # Create a simple icon (placeholder)
+        convert -size 256x256 xc:lightblue -pointsize 72 -fill black -gravity center -annotate +0+0 "CLAW" AppDir/usr/share/icons/hicolor/256x256/apps/claw.png || echo "ImageMagick not available, skipping icon"
+        
+        # Copy man page if it exists
+        if [ -f target/release/build/*/out/man/claw.1 ]; then
+          cp target/release/build/*/out/man/claw.1 AppDir/usr/share/man/man1/
+        fi
+
+    - name: Build AppImage
+      run: |
+        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+
+    - name: Get release version
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Rename AppImage
+      run: mv Claw-*.AppImage claw-${{ env.RELEASE_VERSION }}-x86_64.AppImage
+
+    - name: Upload AppImage
+      uses: actions/upload-artifact@v4
+      with:
+        name: appimage
+        path: claw-*.AppImage
+
+    - name: Get release upload URL
+      id: get_release
+      uses: bruceadams/get-release@v1.3.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload AppImage to release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
+        asset_path: claw-${{ env.RELEASE_VERSION }}-x86_64.AppImage
+        asset_name: claw-${{ env.RELEASE_VERSION }}-x86_64.AppImage
+        asset_content_type: application/x-executable
