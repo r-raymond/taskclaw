@@ -1,3 +1,5 @@
+mod plugins;
+
 use clap::{CommandFactory, Parser};
 use clap_complete::{generate, shells::*};
 use std::io;
@@ -14,12 +16,10 @@ fn main() {
     let mut task_list = load_tasks();
 
     match cli.command {
-        Commands::Add { description } => {
-            match task_list.add_task(description.clone()) {
-                Ok(_) => println!("Added task: {}", description),
-                Err(e) => eprintln!("Error adding task: {}", e),
-            }
-        }
+        Commands::Add { description } => match task_list.add_task(description.clone()) {
+            Ok(_) => println!("Added task: {}", description),
+            Err(e) => eprintln!("Error adding task: {}", e),
+        },
         Commands::List => {
             if task_list.tasks.is_empty() {
                 println!("No tasks found.");
