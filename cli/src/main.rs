@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use std::str::FromStr;
+use taskclaw::task_manager::UUIDorIndex;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -14,25 +14,6 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[derive(Debug, Clone)]
-enum UUIDorIndex {
-    UUID(String),
-    Index(usize),
-}
-
-impl FromStr for UUIDorIndex {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(idx) = s.parse::<usize>() {
-            Ok(UUIDorIndex::Index(idx))
-        } else {
-            // Optionally, validate UUID format here
-            Ok(UUIDorIndex::UUID(s.to_string()))
-        }
-    }
-}
-
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Add a new task
@@ -44,6 +25,13 @@ enum Commands {
     /// Delete a task
     #[command(alias = "d")]
     Delete { id: UUIDorIndex },
+    /// List all tasks
+    #[command(alias = "l")]
+    List {
+        /// Amount of tasks to show
+        #[arg(short, long, default_value_t = 10)]
+        amount: usize,
+    },
 }
 
 fn main() {
@@ -60,25 +48,22 @@ fn main() {
             let task = task_manager.create_task(title);
             println!("{}", task);
         }
-        Some(Commands::Delete { id }) => match id {
-            UUIDorIndex::UUID(uuid_str) => {
-                if let Ok(uuid) = Uuid::parse_str(&uuid_str) {
-                    task_manager.remove_task_by_uuid(&uuid);
-                    println!("Task with UUID {} deleted.", uuid);
-                } else {
-                    eprintln!("Error: Invalid UUID format.");
-                    std::process::exit(1);
-                }
+        Some(Commands::Delete { id }) => {
+            if let Some(task) = task_manager.remove_task(id) {
+                println!("D {}", task);
+            } else {
+                eprintln!("Error: Task not found.");
+                std::process::exit(1);
             }
-            UUIDorIndex::Index(index) => {
-                task_manager.remove_task_by_index(index);
-                println!("Task at index {} deleted.", index);
+        }
+        Some(Commands::List { amount }) => {
+            for task in task_manager.get_tasks_by_priority(amount) {
+                println!("{}", task);
             }
-        },
+        }
         None => {
             eprintln!("No command provided. Use --help for usage information.");
             std::process::exit(1);
         }
     }
 }
-

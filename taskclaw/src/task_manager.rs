@@ -1,37 +1,71 @@
 use crate::task::Task;
+use std::str::FromStr;
+use uuid::Uuid;
 
 pub struct TaskManager {
     tasks: Vec<Task>,
+    next_index: usize,
+}
+
+#[derive(Debug, Clone)]
+pub enum UUIDorIndex {
+    UUID(Uuid),
+    Index(usize),
+}
+
+impl FromStr for UUIDorIndex {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(idx) = s.parse::<usize>() {
+            Ok(UUIDorIndex::Index(idx))
+        } else {
+            match Uuid::parse_str(s) {
+                Ok(uuid) => Ok(UUIDorIndex::UUID(uuid)),
+                Err(_) => Err(format!("Invalid UUID or index: {}", s)),
+            }
+        }
+    }
 }
 
 impl TaskManager {
     pub fn new() -> Self {
-        TaskManager { tasks: Vec::new() }
+        TaskManager {
+            tasks: Vec::new(),
+            next_index: 0,
+        }
     }
 
     pub fn create_task(&mut self, title: String) -> Task {
-        let index = self.tasks.len();
-        let task = Task::new(title, index);
+        let task = Task::new(title, self.next_index);
+        self.next_index += 1;
         self.tasks.push(task.clone());
         task
     }
 
-    pub fn remove_task_by_uuid(&mut self, uuid: &uuid::Uuid) {
-        self.tasks.retain(|task| task.uuid != *uuid);
-    }
+    pub fn remove_task(&mut self, id: UUIDorIndex) -> Option<Task> {
+        let search = match id {
+            UUIDorIndex::UUID(uuid) => self.tasks.iter().position(|task| task.uuid == uuid),
+            UUIDorIndex::Index(id) => self.tasks.iter().position(|task| task.index == id),
+        };
 
-    pub fn remove_task_by_index(&mut self, index: usize) {
-        if index < self.tasks.len() {
-            self.tasks.remove(index);
+        if let Some(index) = search {
+            let removed_task = self.tasks.remove(index);
+            Some(removed_task)
+        } else {
+            None
         }
     }
 
-    pub fn get_tasks_by_uuid(&self, uuid: &uuid::Uuid) -> Option<&Task> {
-        self.tasks.iter().find(|task| task.uuid == *uuid)
+    pub fn get_task(&self, id: UUIDorIndex) -> Option<&Task> {
+        match id {
+            UUIDorIndex::UUID(uuid) => self.tasks.iter().find(|task| task.uuid == uuid),
+            UUIDorIndex::Index(index) => self.tasks.iter().find(|task| task.index == index),
+        }
     }
 
-    pub fn get_tasks_by_index(&self, index: usize) -> Option<&Task> {
-        self.tasks.get(index)
+    pub fn get_tasks_by_priority(&self, amount: usize) -> Vec<&Task> {
+        self.tasks.iter().take(amount).collect()
     }
 }
 
