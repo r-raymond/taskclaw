@@ -34,6 +34,7 @@ enum Commands {
 }
 
 fn main() {
+    env_logger::init();
     let args = Cli::parse();
     let config = utils::read_config();
     let mut task_manager = taskclaw::task_manager::TaskManager::new(config);
