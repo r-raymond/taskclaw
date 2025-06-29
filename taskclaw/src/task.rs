@@ -38,6 +38,47 @@ impl Display for Task {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TaskInStore {
+    pub index: usize,
+    pub title: String,
+    pub created_at: std::time::SystemTime,
+    pub updated_at: std::time::SystemTime,
+    pub tags: Vec<String>,
+    pub description: Option<String>,
+    pub project: Option<String>,
+    pub due_date: Option<std::time::SystemTime>,
+}
+
+impl From<Task> for TaskInStore {
+    fn from(task: Task) -> Self {
+        TaskInStore {
+            index: task.index,
+            title: task.title,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+            tags: task.tags,
+            description: task.description,
+            project: task.project,
+            due_date: task.due_date,
+        }
+    }
+}
+
+pub fn task_from_store(task: TaskInStore, uuid: Uuid) -> Task {
+    Task {
+        uuid,
+        index: task.index,
+        title: task.title,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+        tags: task.tags,
+        description: task.description,
+        project: task.project,
+        due_date: task.due_date,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

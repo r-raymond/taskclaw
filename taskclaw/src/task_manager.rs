@@ -1,5 +1,7 @@
 use crate::config::Config;
-use crate::task::Task;
+use crate::task::{Task, TaskInStore, task_from_store};
+use std::fs;
+use std::io::{self, Write};
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -32,10 +34,52 @@ impl FromStr for UUIDorIndex {
 
 impl TaskManager {
     pub fn new(config: Config) -> Self {
-        TaskManager {
+        let mut manager = TaskManager {
             tasks: Vec::new(),
             next_index: 0,
             config,
+        };
+        manager.load_tasks();
+        manager
+    }
+
+    fn save_task(&self, task: &Task) -> io::Result<()> {
+        if let Some(task_store_path) = self.config.get_task_store_path() {
+            fs::create_dir_all(&task_store_path)?;
+            let file_path = task_store_path.join(format!("{}.json", task.uuid));
+            let json = serde_json::to_string_pretty(task)?;
+            let mut file = fs::File::create(file_path)?;
+            file.write_all(json.as_bytes())?;
+        }
+        Ok(())
+    }
+
+    fn load_tasks(&mut self) {
+        if let Some(task_store_path) = self.config.get_task_store_path() {
+            if task_store_path.exists() {
+                for entry in fs::read_dir(task_store_path).expect("Failed to read task directory") {
+                    let entry = entry.expect("Failed to read directory entry");
+                    let path = entry.path();
+                    if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+                        let json = fs::read_to_string(&path).expect("Failed to read task file");
+                        let task_in_store: TaskInStore =
+                            serde_json::from_str(&json).expect("Failed to parse task JSON");
+                        if let Some(file_stem) = path.file_stem() {
+                            if let Some(uuid_str) = file_stem.to_str() {
+                                if let Ok(uuid) = Uuid::parse_str(uuid_str) {
+                                    let task = task_from_store(task_in_store, uuid);
+                                    self.tasks.push(task);
+                                } else {
+                                    eprintln!(
+                                        "Warning: Could not parse UUID from filename: {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -43,6 +87,7 @@ impl TaskManager {
         let task = Task::new(title, self.next_index);
         self.next_index += 1;
         self.tasks.push(task.clone());
+        self.save_task(&task).expect("Failed to save task");
         task
     }
 
@@ -54,6 +99,12 @@ impl TaskManager {
 
         if let Some(index) = search {
             let removed_task = self.tasks.remove(index);
+            if let Some(task_store_path) = self.config.get_task_store_path() {
+                let file_path = task_store_path.join(format!("{}.json", removed_task.uuid));
+                if file_path.exists() {
+                    fs::remove_file(file_path).expect("Failed to delete task file");
+                }
+            }
             Some(removed_task)
         } else {
             None
@@ -75,6 +126,7 @@ impl TaskManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
     use uuid::Uuid;
 
     // Helper to create a dummy TaskManager and add tasks
@@ -170,5 +222,76 @@ mod tests {
         let manager = setup_manager_with_tasks(2);
         let task = manager.get_task(UUIDorIndex::Index(5));
         assert!(task.is_none());
+    }
+
+    #[test]
+    fn test_save_and_load_tasks() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        let store_location = temp_dir.path().to_path_buf();
+        let config = Config {
+            store_location: Some(store_location.clone()),
+        };
+
+        // Create a manager and add some tasks
+        let mut manager = TaskManager::new(config.clone());
+        let t1 = manager.create_task("Task 1".to_string());
+        let t2 = manager.create_task("Task 2".to_string());
+        let t3 = manager.create_task("Task 3".to_string());
+        assert_eq!(manager.tasks.len(), 3);
+
+        // Create a new manager with the same config to load tasks
+        let new_manager = TaskManager::new(config.clone());
+        assert_eq!(new_manager.tasks.len(), 3);
+
+        // Verify loaded tasks
+        assert_eq!(
+            new_manager
+                .get_task(UUIDorIndex::UUID(t1.uuid))
+                .unwrap()
+                .title,
+            "Task 1"
+        );
+        assert_eq!(
+            new_manager
+                .get_task(UUIDorIndex::UUID(t2.uuid))
+                .unwrap()
+                .title,
+            "Task 2"
+        );
+        assert_eq!(
+            new_manager
+                .get_task(UUIDorIndex::UUID(t3.uuid))
+                .unwrap()
+                .title,
+            "Task 3"
+        );
+
+        // Clean up
+        temp_dir
+            .close()
+            .expect("Failed to clean up temporary directory");
+    }
+
+    #[test]
+    fn test_remove_task_deletes_file() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        let store_location = temp_dir.path().to_path_buf();
+        let config = Config {
+            store_location: Some(store_location.clone()),
+        };
+
+        let mut manager = TaskManager::new(config.clone());
+        let task = manager.create_task("Task to be removed".to_string());
+        let task_file_path = store_location
+            .join("tasks")
+            .join(format!("{}.json", task.uuid));
+        assert!(task_file_path.exists());
+
+        manager.remove_task(UUIDorIndex::UUID(task.uuid));
+        assert!(!task_file_path.exists());
+
+        temp_dir
+            .close()
+            .expect("Failed to clean up temporary directory");
     }
 }
