@@ -60,7 +60,7 @@ impl TaskManager {
                 for entry in fs::read_dir(task_store_path).expect("Failed to read task directory") {
                     let entry = entry.expect("Failed to read directory entry");
                     let path = entry.path();
-                    if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
                         let json = fs::read_to_string(&path).expect("Failed to read task file");
                         let task_in_store: TaskInStore =
                             serde_json::from_str(&json).expect("Failed to parse task JSON");
