@@ -37,3 +37,51 @@ impl Display for Task {
         write!(f, "[{}]: {}", self.index, self.title)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn test_task_new() {
+        let title = String::from("Test Task");
+        let index = 1;
+        let task = Task::new(title.clone(), index);
+        assert_eq!(task.title, title);
+        assert_eq!(task.index, index);
+        assert!(task.tags.is_empty());
+        assert!(task.description.is_none());
+        assert!(task.project.is_none());
+        assert!(task.due_date.is_none());
+    }
+
+    #[test]
+    fn test_task_display() {
+        let title = String::from("Display Task");
+        let index = 42;
+        let task = Task::new(title.clone(), index);
+        let display = format!("{}", task);
+        assert_eq!(display, format!("[{}]: {}", index, title));
+    }
+
+    #[test]
+    fn test_task_clone() {
+        let task1 = Task::new("Clone Task".to_string(), 2);
+        let task2 = task1.clone();
+        assert_eq!(task1.title, task2.title);
+        assert_eq!(task1.index, task2.index);
+        assert_eq!(task1.uuid, task2.uuid);
+    }
+
+    #[test]
+    fn test_task_timestamps() {
+        let task = Task::new("Timestamp Task".to_string(), 3);
+        let now = SystemTime::now();
+        // Allow a small difference due to execution time
+        assert!(task.created_at <= now);
+        assert!(task.updated_at <= now);
+        assert!(now.duration_since(task.created_at).unwrap() < Duration::from_secs(5));
+        assert!(now.duration_since(task.updated_at).unwrap() < Duration::from_secs(5));
+    }
+}
