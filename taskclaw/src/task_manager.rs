@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::task::Task;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -5,6 +6,7 @@ use uuid::Uuid;
 pub struct TaskManager {
     tasks: Vec<Task>,
     next_index: usize,
+    config: Config,
 }
 
 #[derive(Debug, Clone)]
@@ -29,10 +31,11 @@ impl FromStr for UUIDorIndex {
 }
 
 impl TaskManager {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         TaskManager {
             tasks: Vec::new(),
             next_index: 0,
+            config,
         }
     }
 
@@ -72,12 +75,11 @@ impl TaskManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::task::Task;
     use uuid::Uuid;
 
     // Helper to create a dummy TaskManager and add tasks
     fn setup_manager_with_tasks(n: usize) -> TaskManager {
-        let mut manager = TaskManager::new();
+        let mut manager = TaskManager::new(Config::default());
         for i in 0..n {
             manager.create_task(format!("Task {}", i));
         }
@@ -86,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_create_task_normal() {
-        let mut manager = TaskManager::new();
+        let mut manager = TaskManager::new(Config::default());
         let task = manager.create_task("Test Task".to_string());
         assert_eq!(task.title, "Test Task");
         assert_eq!(task.index, 0);
@@ -96,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_create_task_empty_title() {
-        let mut manager = TaskManager::new();
+        let mut manager = TaskManager::new(Config::default());
         let task = manager.create_task("".to_string());
         assert_eq!(task.title, "");
         assert_eq!(task.index, 0);

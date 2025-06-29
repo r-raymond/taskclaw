@@ -16,3 +16,7 @@ pub fn read_config_file(file_name: &str) -> Option<String> {
         None
     }
 }
+
+pub fn read_default_config() -> Option<String> {
+    read_config_file("config.toml")
+}

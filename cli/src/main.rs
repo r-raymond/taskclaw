@@ -35,7 +35,7 @@ enum Commands {
 
 fn main() {
     let args = Cli::parse();
-    let mut task_manager = taskclaw::task_manager::TaskManager::new();
+    let mut task_manager = taskclaw::task_manager::TaskManager::new(taskclaw::config::Config::default());
 
     match args.command {
         Some(Commands::Add { title }) => {
