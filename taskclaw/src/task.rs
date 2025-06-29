@@ -12,6 +12,7 @@ pub struct Task {
     pub tags: Vec<String>,
     pub description: Option<String>,
     pub project: Option<String>,
+    pub due_date: Option<std::time::SystemTime>,
 }
 
 impl Task {
@@ -26,6 +27,7 @@ impl Task {
             tags: Vec::new(),
             description: None,
             project: None,
+            due_date: None,
         }
     }
 }
