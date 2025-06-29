@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 use taskclaw::task_manager::UUIDorIndex;
-use uuid::Uuid;
 
 #[derive(Parser, Debug)]
 #[command(
