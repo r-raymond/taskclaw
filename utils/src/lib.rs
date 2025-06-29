@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use taskclaw::config::Config;
 
 pub fn get_config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|mut path| {
@@ -8,15 +9,15 @@ pub fn get_config_dir() -> Option<PathBuf> {
     })
 }
 
-pub fn read_config_file(file_name: &str) -> Option<String> {
+pub fn read_config() -> Config {
     if let Some(mut config_dir) = get_config_dir() {
-        config_dir.push(file_name);
-        fs::read_to_string(config_dir).ok()
-    } else {
-        None
+        config_dir.push("config.toml");
+        if let Ok(content) = fs::read_to_string(config_dir) {
+            if let Ok(config) = toml::from_str(&content) {
+                return config;
+            }
+        }
     }
+    Config::default()
 }
 
-pub fn read_default_config() -> Option<String> {
-    read_config_file("config.toml")
-}
