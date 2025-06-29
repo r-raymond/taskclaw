@@ -9,6 +9,9 @@ pub struct Task {
     pub title: String,
     pub created_at: std::time::SystemTime,
     pub updated_at: std::time::SystemTime,
+    pub tags: Vec<String>,
+    pub description: Option<String>,
+    pub project: Option<String>,
 }
 
 impl Task {
@@ -20,6 +23,9 @@ impl Task {
             index,
             created_at: std::time::SystemTime::now(),
             updated_at: std::time::SystemTime::now(),
+            tags: Vec::new(),
+            description: None,
+            project: None,
         }
     }
 }
