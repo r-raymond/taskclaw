@@ -351,8 +351,8 @@ dependencies = [
 name = "taskclaw"
 version = "0.1.0"
 dependencies = [
+ "log",
  "serde",
- "toml",
  "uuid",
 ]
 
@@ -441,6 +441,7 @@ name = "utils"
 version = "0.1.0"
 dependencies = [
  "dirs",
+ "log",
  "taskclaw",
  "toml",
 ]
