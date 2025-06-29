@@ -109,7 +109,7 @@ mod tests {
     fn test_remove_task_by_uuid_existing() {
         let mut manager = setup_manager_with_tasks(2);
         let uuid = manager.tasks[0].uuid;
-        manager.remove_task_by_uuid(&uuid);
+        manager.remove_task(UUIDorIndex::UUID(uuid));
         assert_eq!(manager.tasks.len(), 1);
         assert!(manager.tasks.iter().all(|t| t.uuid != uuid));
     }
@@ -119,14 +119,14 @@ mod tests {
         let mut manager = setup_manager_with_tasks(2);
         let fake_uuid = Uuid::now_v7();
         let len_before = manager.tasks.len();
-        manager.remove_task_by_uuid(&fake_uuid);
+        manager.remove_task(UUIDorIndex::UUID(fake_uuid));
         assert_eq!(manager.tasks.len(), len_before);
     }
 
     #[test]
     fn test_remove_task_by_index_valid() {
         let mut manager = setup_manager_with_tasks(3);
-        manager.remove_task_by_index(1);
+        manager.remove_task(UUIDorIndex::Index(1));
         assert_eq!(manager.tasks.len(), 2);
         // Ensure the correct task was removed
         assert_eq!(manager.tasks[0].index, 0);
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_remove_task_by_index_out_of_bounds() {
         let mut manager = setup_manager_with_tasks(2);
-        manager.remove_task_by_index(5);
+        manager.remove_task(UUIDorIndex::Index(5));
         assert_eq!(manager.tasks.len(), 2);
     }
 
@@ -144,7 +144,7 @@ mod tests {
     fn test_get_tasks_by_uuid_existing() {
         let manager = setup_manager_with_tasks(2);
         let uuid = manager.tasks[1].uuid;
-        let task = manager.get_tasks_by_uuid(&uuid);
+        let task = manager.get_task(UUIDorIndex::UUID(uuid));
         assert!(task.is_some());
         assert_eq!(task.unwrap().uuid, uuid);
     }
@@ -153,14 +153,14 @@ mod tests {
     fn test_get_tasks_by_uuid_non_existing() {
         let manager = setup_manager_with_tasks(2);
         let fake_uuid = Uuid::now_v7();
-        let task = manager.get_tasks_by_uuid(&fake_uuid);
+        let task = manager.get_task(UUIDorIndex::UUID(fake_uuid));
         assert!(task.is_none());
     }
 
     #[test]
     fn test_get_tasks_by_index_valid() {
         let manager = setup_manager_with_tasks(2);
-        let task = manager.get_tasks_by_index(1);
+        let task = manager.get_task(UUIDorIndex::Index(1));
         assert!(task.is_some());
         assert_eq!(task.unwrap().index, 1);
     }
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn test_get_tasks_by_index_out_of_bounds() {
         let manager = setup_manager_with_tasks(2);
-        let task = manager.get_tasks_by_index(5);
+        let task = manager.get_task(UUIDorIndex::Index(5));
         assert!(task.is_none());
     }
 }
