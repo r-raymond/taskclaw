@@ -1,6 +1,6 @@
 use crate::task::Task;
 
-struct TaskManager {
+pub struct TaskManager {
     tasks: Vec<Task>,
 }
 
